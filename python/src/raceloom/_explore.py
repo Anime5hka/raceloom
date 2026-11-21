@@ -90,7 +90,7 @@ def _run_schedule(body: Body, seed: int, decide: Decider, max_steps: int) -> _Ru
             if inspect.isawaitable(result):
                 await result
 
-        sim.main = loop.create_task(main(), name="main")
+        sim.main = asyncio.Task(main(), loop=loop, name="main")
         loop.run_forever()
         main_task = sim.main
         if sim.error is None and main_task.done() and not main_task.cancelled() and main_task.exception():

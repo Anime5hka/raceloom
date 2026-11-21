@@ -148,9 +148,11 @@ class Sim:
         return task.get_name() if task is not None else "main"
 
     def _task_factory(self, loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any) -> asyncio.Task:
+        # Python <= 3.12 calls set_name() after the factory; 3.13+ passes name= in kwargs.
+        name = kwargs.pop("name", None)
         task = asyncio.Task(coro, loop=loop, **kwargs)
         self._task_counter += 1
-        task.set_name(f"task-{self._task_counter}")  # deterministic; create_task(name=...) overrides
+        task.set_name(name if name is not None else f"task-{self._task_counter}")  # deterministic default
         self._tasks.append(task)
         return task
 
@@ -183,8 +185,8 @@ class Sim:
                     result = await result
                 return result
 
-            runner = loop.create_task(execute(), name=task)
-            self._tasks.remove(runner)  # internal; its outcome is reported through `fut`
+            # Created directly (not via the task factory): internal, outcome reported through `fut`.
+            runner = asyncio.Task(execute(), loop=loop, name=task)
             self._inflight.add(runner)
 
             def done(t: asyncio.Task) -> None:

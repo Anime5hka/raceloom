@@ -7,7 +7,7 @@ name = "raceloom"
 version = "0.1.0"
 description = "Find race conditions in asyncio code: explores every ordering of your awaits, shrinks the failure, and prints the exact interleaving."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 keywords = ["asyncio", "race-condition", "concurrency", "testing", "deterministic-simulation", "model-checking", "pytest"]
 classifiers = [
