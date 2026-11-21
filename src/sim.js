@@ -19,6 +19,12 @@ class OpPromise extends Promise {
   }
 }
 
+function toResponse(v) {
+  if (v instanceof Response) return v;
+  if (typeof v === 'string') return new Response(v);
+  return Response.json(v ?? null);
+}
+
 // Virtual wall clock starts here so patched Date looks realistic but stays reproducible.
 const EPOCH = Date.UTC(2026, 0, 1);
 
@@ -30,7 +36,8 @@ export class Sim {
   constructor({ seed = 1, trackRejections = true } = {}) {
     this.seed = seed;
     this._trackRejections = trackRejections;
-    this._rejected = []; // op promises that rejected; checked for handlers at each idle point
+    this._rejected = [];
+    this._cleanups = []; // run when the schedule ends // op promises that rejected; checked for handlers at each idle point
     this._rng = createRng(seed);
     this._now = 0;
     this._seq = 0;
@@ -41,7 +48,7 @@ export class Sim {
     this._uncaught = null;
     this._active = true;
     // Bind so methods can be destructured: const { fn, sleep } = sim
-    for (const k of ['fn', 'wrap', 'go', 'yield', 'sleep', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'now', 'random', 'log']) {
+    for (const k of ['fn', 'wrap', 'mockFetch', 'go', 'yield', 'sleep', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'now', 'random', 'log']) {
       this[k] = this[k].bind(this);
     }
   }
@@ -73,6 +80,26 @@ export class Sim {
         return cache.get(prop);
       },
     });
+  }
+
+  /**
+   * A fetch() whose requests are schedulable operations, answered by `handler(request)`.
+   * The handler may return a Response, a string, or any JSON-serializable value.
+   * With { global: true } it also replaces globalThis.fetch for the rest of the schedule.
+   */
+  mockFetch(handler, { global = false } = {}) {
+    const fetch = (input, init) => {
+      const req = new Request(typeof input === 'string' && input.startsWith('/') ? `http://localhost${input}` : input, init);
+      const url = new URL(req.url);
+      const where = url.host === 'localhost' ? url.pathname + url.search : req.url;
+      return this._op('fetch', null, async () => toResponse(await handler(req)), 'op', `fetch ${req.method} ${where}`);
+    };
+    if (global) {
+      const saved = globalThis.fetch;
+      globalThis.fetch = fetch;
+      this._cleanups.push(() => (globalThis.fetch = saved));
+    }
+    return fetch;
   }
 
   /** Run fn as a named concurrent task; its operations are labelled with that name in traces. */
@@ -138,11 +165,10 @@ export class Sim {
     }
   }
 
-  _op(name, args, run, kind = 'op') {
+  _op(name, args, run, kind = 'op', label = args ? `${name}(${args.map(formatValue).join(', ')})` : name) {
     this._checkActive();
     const id = ++this._seq;
     const task = this._task();
-    const label = args ? `${name}(${args.map(formatValue).join(', ')})` : name;
     if (kind === 'op') this._event({ type: 'call', label, task });
     const Ctor = this._trackRejections ? OpPromise : Promise;
     const promise = new Ctor((resolve, reject) => {

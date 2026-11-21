@@ -3,6 +3,7 @@ import { inspect } from 'node:util';
 const MAX = 60;
 
 export function formatValue(v) {
+  if (typeof Response === 'function' && v instanceof Response) return `Response ${v.status}`;
   let s;
   try {
     s = inspect(v, { depth: 2, breakLength: Infinity, maxStringLength: 40, maxArrayLength: 5, compact: true });

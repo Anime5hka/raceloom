@@ -79,6 +79,15 @@ export declare class Sim {
   fn<F extends AnyAsync>(impl: F): Asyncify<F>;
   /** Proxy every method of an object through `fn`, labelled `name.method`. */
   wrap<T extends object>(name: string, obj: T): Wrapped<T>;
+  /**
+   * A fetch() whose requests are schedulable operations answered by `handler`.
+   * Return a Response, a string, or any JSON-serializable value. Relative URLs resolve against http://localhost.
+   * `global: true` replaces globalThis.fetch until the schedule ends.
+   */
+  mockFetch(
+    handler: (request: Request) => unknown,
+    options?: { global?: boolean },
+  ): (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   /** Run `fn` as a named task; its operations are labelled with that name in the timeline. */
   go<R>(name: string, fn: () => R): R;
   /** An explicit preemption point: anything else pending may run first. */

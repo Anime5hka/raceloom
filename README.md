@@ -102,6 +102,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 |---|---|
 | `sim.wrap(name, obj)` | Proxy every method of `obj`; each call is a schedulable op labelled `name.method(args)` |
 | `sim.fn(name, impl)` | Same for a single function |
+| `sim.mockFetch(handler, { global? })` | A `fetch` whose requests are schedulable ops (`fetch GET /search?q=r`). `handler(request)` returns a `Response`, string or JSON value. `global: true` swaps `globalThis.fetch` for the schedule |
 | `sim.go(name, fn)` | Run `fn` as a named task — the name appears in the timeline |
 | `sim.sleep(ms)` / `sim.setTimeout` / `sim.setInterval` / `sim.clear*` | Virtual timers |
 | `sim.yield(label?)` | An explicit preemption point inside synchronous-looking code |
@@ -129,7 +130,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 - [ ] Partial-order reduction (skip orderings of independent operations) for much larger exhaustive searches
 - [ ] PCT strategy (probabilistic concurrency testing) for deep bugs in big state spaces
 - [ ] Two-phase operations (request executes, response arrives later) to model network latency more precisely
-- [ ] `fetch` / undici interceptor so HTTP clients can be wrapped with zero glue
+- [x] `sim.mockFetch` so code that calls `fetch` can be tested with zero glue
 - [x] Unhandled-rejection detection inside schedules
 - [ ] Browser build
 

@@ -26,3 +26,10 @@ result.catch((e) => {
     return explore(() => {}, { replay });
   }
 });
+
+explore(async (sim) => {
+  const f = sim.mockFetch(async (req: Request) => ({ url: req.url }), { global: true });
+  const res: Response = await f('/x');
+  const body: unknown = await res.json();
+  void body;
+});

@@ -362,3 +362,35 @@ test('handled op rejections (await, .catch, Promise.allSettled) are not reported
   });
   assert.equal(res.complete, true);
 });
+
+test('mockFetch turns HTTP requests into schedulable operations', async () => {
+  const realFetch = globalThis.fetch;
+  const err = await explore(async (sim) => {
+    sim.mockFetch(async (req) => {
+      const q = new URL(req.url).searchParams.get('q');
+      return { q, hits: [`${q}!`] };
+    }, { global: true });
+    let shown;
+    const search = async (q) => {
+      const res = await fetch(`/search?q=${q}`);
+      shown = (await res.json()).q;
+    };
+    await Promise.all([search('a'), search('ab')]);
+    assert.equal(shown, 'ab');
+  }).catch((e) => e);
+  assert.equal(globalThis.fetch, realFetch, 'global fetch restored');
+  assert.ok(err instanceof RaceError);
+  assert.match(err.message, /→ fetch GET \/search\?q=a\n/);
+  assert.match(err.message, /← fetch GET \/search\?q=ab = Response 200 +⚡/);
+});
+
+test('mockFetch accepts Response, string and absolute URLs', async () => {
+  await explore(async (sim) => {
+    const fetch = sim.mockFetch((req) =>
+      req.method === 'POST' ? new Response(null, { status: 201 }) : req.url.endsWith('/txt') ? 'hello' : { ok: 1 },
+    );
+    assert.equal((await fetch('https://api.example.com/x', { method: 'POST' })).status, 201);
+    assert.equal(await (await fetch('/txt')).text(), 'hello');
+    assert.deepEqual(await (await fetch(new Request('https://api.example.com/j'))).json(), { ok: 1 });
+  });
+});

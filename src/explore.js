@@ -89,6 +89,7 @@ async function runSchedule(body, { seed, decide, maxSteps, patchGlobals, unhandl
   } finally {
     sim._active = false;
     restore?.();
+    for (const undo of sim._cleanups.splice(0).reverse()) undo();
   }
   return { error, decisions, sizes, trace: sim._trace };
 }
