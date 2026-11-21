@@ -101,6 +101,16 @@ git clone https://github.com/Anime5hka/raceloom && cd raceloom && npm run exampl
 
 **Against real libraries:** [`case-studies/`](case-studies) runs raceloom on unmodified `lru-cache`, `async-lru`, `aiolimiter` and `aiocache`. It *proves* lru-cache's fetch-vs-delete handling safe in all 15 orderings — and finds in 2 schedules that aiocache's `@cached` writes a stale row back into the cache when an invalidation lands while a read is in flight.
 
+## Use it from AI coding agents
+
+[`skills/raceloom/SKILL.md`](skills/raceloom/SKILL.md) is an [agent skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches Claude Code (and other agents that read `SKILL.md`) when to reach for raceloom, how to pick the racing actors, which invariant to assert, and how to explain the timeline. Install it for your user:
+
+```sh
+mkdir -p ~/.claude/skills/raceloom && curl -fsSL https://raw.githubusercontent.com/Anime5hka/raceloom/main/skills/raceloom/SKILL.md -o ~/.claude/skills/raceloom/SKILL.md
+```
+
+Then ask: *"is there a race between `getUser` and `renameUser`?"*
+
 ## How it works
 
 1. **Every wrapped call becomes a pending operation.** `sim.wrap('db', fakeDb)` returns a proxy; calling `db.get('alice')` doesn't run the fake yet — it parks the call.
