@@ -29,7 +29,7 @@ function renderMessage({ error, schedule, strategy, seed, replay, trace, decisio
   const k = decisions.filter((d) => d !== 0).length;
   const where = schedule ? `on schedule #${schedule} (${strategy}, seed ${seed})` : `while replaying ${JSON.stringify(replay)}`;
   return [
-    formatError(error, { lines: 4 }),
+    formatError(error, { lines: 3 }),
     '',
     `raceloom found a failing interleaving ${where}.`,
     k === 0 ? 'It fails even in the default order (no reordering needed).' : `Minimal reproduction: ${k} out-of-order ${k === 1 ? 'step' : 'steps'}.`,

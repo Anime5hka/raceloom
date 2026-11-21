@@ -14,6 +14,10 @@ export function formatValue(v) {
 
 export function formatError(e, { lines = 1 } = {}) {
   if (!(e instanceof Error)) return formatValue(e);
+  // node:assert's generated messages are multi-line diffs; summarize them on one line.
+  if (e.code === 'ERR_ASSERTION' && e.generatedMessage && 'expected' in e) {
+    return `${e.name}: expected ${formatValue(e.expected)}, got ${formatValue(e.actual)}`;
+  }
   const msg = e.message
     .split('\n')
     .map((l) => l.trimEnd())

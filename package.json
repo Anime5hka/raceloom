@@ -10,12 +10,35 @@
     }
   },
   "types": "./src/index.d.ts",
-  "files": ["src"],
-  "engines": { "node": ">=20" },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "examples": "node --test examples/*.test.js"
+    "examples": "node --test examples/*.test.js",
+    "typecheck": "tsc -p ."
   },
-  "keywords": ["race-condition", "concurrency", "testing", "async", "deterministic-simulation", "model-checking", "loom", "fuzzing", "promises", "interleaving"],
-  "license": "MIT"
+  "keywords": [
+    "race-condition",
+    "concurrency",
+    "testing",
+    "async",
+    "deterministic-simulation",
+    "model-checking",
+    "loom",
+    "fuzzing",
+    "promises",
+    "interleaving"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWNER/raceloom.git"
+  }
 }
