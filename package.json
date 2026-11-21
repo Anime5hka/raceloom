@@ -1,0 +1,21 @@
+{
+  "name": "raceloom",
+  "version": "0.1.0",
+  "description": "Find race conditions in async JavaScript. Explores every ordering of your awaits, shrinks the failure, and prints the exact interleaving.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "types": "./src/index.d.ts",
+  "files": ["src"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "examples": "node --test examples/*.test.js"
+  },
+  "keywords": ["race-condition", "concurrency", "testing", "async", "deterministic-simulation", "model-checking", "loom", "fuzzing", "promises", "interleaving"],
+  "license": "MIT"
+}

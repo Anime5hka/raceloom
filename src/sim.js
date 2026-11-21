@@ -1,0 +1,256 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { createRng } from './rng.js';
+import { formatValue, formatError } from './format.js';
+
+export const taskStore = new AsyncLocalStorage();
+
+// Virtual wall clock starts here so patched Date looks realistic but stays reproducible.
+const EPOCH = Date.UTC(2026, 0, 1);
+
+/**
+ * One simulated world. A fresh Sim is created for every schedule that explore() runs,
+ * so all state the test touches must be created inside the test body.
+ */
+export class Sim {
+  constructor({ seed = 1 } = {}) {
+    this.seed = seed;
+    this._rng = createRng(seed);
+    this._now = 0;
+    this._seq = 0;
+    this._pending = []; // ops + yields, in call order
+    this._timers = []; // sorted by (deadline, id)
+    this._inflight = new Set(); // impl promises currently settling
+    this._trace = [];
+    this._uncaught = null;
+    this._active = true;
+    // Bind so methods can be destructured: const { fn, sleep } = sim
+    for (const k of ['fn', 'wrap', 'go', 'yield', 'sleep', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'now', 'random', 'log']) {
+      this[k] = this[k].bind(this);
+    }
+  }
+
+  // ---------------------------------------------------------------- public API
+
+  /** Wrap an async function so each call becomes a schedulable operation. */
+  fn(name, impl = async () => {}) {
+    if (typeof name === 'function') [name, impl] = [name.name || 'fn', name];
+    const sim = this;
+    return function simulated(...args) {
+      return sim._op(name, args, () => impl.apply(this, args));
+    };
+  }
+
+  /** Proxy every method of an object (e.g. a fake db/client) through sim.fn. */
+  wrap(name, obj) {
+    const cache = new Map();
+    return new Proxy(obj, {
+      get: (target, prop, receiver) => {
+        const v = Reflect.get(target, prop, receiver);
+        if (typeof v !== 'function' || typeof prop === 'symbol') return v;
+        if (!cache.has(prop)) {
+          const sim = this;
+          cache.set(prop, function (...args) {
+            return sim._op(`${name}.${String(prop)}`, args, () => v.apply(target, args));
+          });
+        }
+        return cache.get(prop);
+      },
+    });
+  }
+
+  /** Run fn as a named concurrent task; its operations are labelled with that name in traces. */
+  go(name, fn) {
+    return taskStore.run(String(name), fn);
+  }
+
+  /** An explicit preemption point: other pending work may run before this resolves. */
+  yield(label = 'yield') {
+    return this._op(label, null, () => undefined, 'yield');
+  }
+
+  sleep(ms = 0, label) {
+    return new Promise((resolve) => this._timer(ms, resolve, label ?? `sleep(${ms})`, false));
+  }
+
+  setTimeout(cb, ms = 0, ...args) {
+    return this._timer(ms, () => cb(...args), `setTimeout(${ms})`, false);
+  }
+
+  setInterval(cb, ms = 0, ...args) {
+    return this._timer(ms, () => cb(...args), `setInterval(${ms})`, true);
+  }
+
+  clearTimeout(id) {
+    const i = this._timers.findIndex((t) => t.id === id);
+    if (i !== -1) this._timers.splice(i, 1);
+  }
+
+  clearInterval(id) {
+    this.clearTimeout(id);
+  }
+
+  /** Virtual time in ms since the start of this schedule. */
+  now() {
+    return this._now;
+  }
+
+  /** Seeded random in [0, 1). */
+  random() {
+    return this._rng();
+  }
+
+  /** Add a note to the trace. */
+  log(...parts) {
+    this._event({ type: 'log', label: parts.map((p) => (typeof p === 'string' ? p : formatValue(p))).join(' ') });
+  }
+
+  // ---------------------------------------------------------------- internals
+
+  _task() {
+    return taskStore.getStore() ?? 'main';
+  }
+
+  _event(ev) {
+    ev.task ??= this._task();
+    this._trace.push(ev);
+  }
+
+  _checkActive() {
+    if (!this._active) {
+      throw new Error('raceloom: this sim has finished. Create fakes inside the explore() body so each schedule gets fresh ones.');
+    }
+  }
+
+  _op(name, args, run, kind = 'op') {
+    this._checkActive();
+    const id = ++this._seq;
+    const task = this._task();
+    const label = args ? `${name}(${args.map(formatValue).join(', ')})` : name;
+    if (kind === 'op') this._event({ type: 'call', label, task });
+    return new Promise((resolve, reject) => {
+      this._pending.push({
+        id,
+        kind,
+        label,
+        task,
+        fire: (overtook) => {
+          if (kind === 'yield') {
+            this._event({ type: 'yield', label, task, overtook });
+            resolve();
+            return;
+          }
+          let r;
+          try {
+            r = taskStore.run(task, run);
+          } catch (e) {
+            r = Promise.reject(e);
+          }
+          const p = Promise.resolve(r).then(
+            (v) => {
+              this._event({ type: 'return', label, task, value: formatValue(v), overtook });
+              resolve(v);
+            },
+            (e) => {
+              this._event({ type: 'throw', label, task, value: formatError(e), overtook });
+              reject(e);
+            },
+          );
+          this._inflight.add(p);
+          p.finally(() => this._inflight.delete(p));
+        },
+      });
+    });
+  }
+
+  _timer(ms, cb, label, repeat) {
+    this._checkActive();
+    ms = Math.max(0, Number(ms) || 0);
+    const id = ++this._seq;
+    const task = this._task();
+    const t = {
+      id,
+      kind: 'timer',
+      label,
+      task,
+      deadline: this._now + ms,
+      fire: (overtook) => {
+        this._now = Math.max(this._now, t.deadline);
+        this._event({ type: 'timer', label, task, at: this._now, overtook });
+        if (repeat) {
+          t.deadline = this._now + Math.max(1, ms);
+          this._insertTimer(t);
+        }
+        try {
+          taskStore.run(task, cb);
+        } catch (e) {
+          this._event({ type: 'error', task, value: formatError(e) });
+          this._uncaught ??= e;
+        }
+      },
+    };
+    t.repeat = repeat;
+    this._insertTimer(t);
+    return id;
+  }
+
+  _insertTimer(t) {
+    let i = this._timers.length;
+    while (i > 0 && this._timers[i - 1].deadline > t.deadline) i--;
+    this._timers.splice(i, 0, t);
+  }
+
+  /** What may run next: every pending op, plus the earliest timer (timers fire in deadline order). */
+  _choices() {
+    return this._timers.length ? [...this._pending, this._timers[0]] : this._pending.slice();
+  }
+
+  _fire(choice, overtook) {
+    if (choice.kind === 'timer') this._timers.shift();
+    else this._pending.splice(this._pending.indexOf(choice), 1);
+    choice.fire(overtook || undefined);
+  }
+
+  // ---------------------------------------------------------------- global patching
+
+  _installGlobals() {
+    const g = globalThis;
+    const saved = {
+      setTimeout: g.setTimeout,
+      clearTimeout: g.clearTimeout,
+      setInterval: g.setInterval,
+      clearInterval: g.clearInterval,
+      setImmediate: g.setImmediate,
+      Date: g.Date,
+      random: Math.random,
+    };
+    const sim = this;
+    const RealDate = saved.Date;
+    class SimDate extends RealDate {
+      constructor(...a) {
+        if (a.length === 0) super(EPOCH + sim._now);
+        else super(...a);
+      }
+      static now() {
+        return EPOCH + sim._now;
+      }
+    }
+    g.setTimeout = this.setTimeout;
+    g.clearTimeout = this.clearTimeout;
+    g.setInterval = this.setInterval;
+    g.clearInterval = this.clearInterval;
+    g.setImmediate = (cb, ...args) => this._timer(0, () => cb(...args), 'setImmediate', false);
+    g.Date = SimDate;
+    Math.random = this.random;
+    return () => {
+      Object.assign(g, {
+        setTimeout: saved.setTimeout,
+        clearTimeout: saved.clearTimeout,
+        setInterval: saved.setInterval,
+        clearInterval: saved.clearInterval,
+        setImmediate: saved.setImmediate,
+        Date: saved.Date,
+      });
+      Math.random = saved.random;
+    };
+  }
+}
