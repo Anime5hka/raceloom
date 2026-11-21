@@ -20,7 +20,7 @@ export class RaceError extends Error {
 
 class DeadlockError extends Error {
   constructor() {
-    super('deadlock — the test body never finished, and nothing is left to run (a promise is awaited that nothing will ever resolve)');
+    super('deadlock — the test body never finished, and nothing is left to run. Either a promise is awaited that nothing will ever resolve, or the body awaited real I/O / a real timer that raceloom cannot see (route it through sim.fn / sim.sleep, or use patchGlobals).');
     this.name = 'Deadlock';
   }
 }
