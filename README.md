@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/OWNER/raceloom/actions/workflows/ci.yml"><img src="https://github.com/OWNER/raceloom/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Anime5hka/raceloom/actions/workflows/ci.yml"><img src="https://github.com/Anime5hka/raceloom/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="zero dependencies">
   <img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="node >= 20">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776ab" alt="python >= 3.11">
@@ -28,13 +28,13 @@ raceloom is a tiny, zero-dependency library that makes those orderings **testabl
 **JavaScript / TypeScript** (Node ≥ 20, any test runner):
 
 ```sh
-npm install --save-dev github:OWNER/raceloom
+npm install --save-dev github:Anime5hka/raceloom
 ```
 
 **Python** (asyncio, Python ≥ 3.11, pytest or anything else) — see [python/README.md](python/README.md):
 
 ```sh
-pip install "git+https://github.com/OWNER/raceloom#subdirectory=python"
+pip install "git+https://github.com/Anime5hka/raceloom#subdirectory=python"
 ```
 
 Wrap the async boundaries of your test (your fake db, API client, cache…) with `sim.wrap` / `sim.fn`, and put the test body inside `explore`:
@@ -96,7 +96,7 @@ Every example in [`examples/`](examples) (and its Python twin in [`python/exampl
 | [job-queue](examples/job-queue.test.js) | Visibility timeout fires during a slow payment → customer charged twice (plain `setTimeout` code, virtual clock) | 4 schedules |
 
 ```sh
-git clone https://github.com/OWNER/raceloom && cd raceloom && npm run examples
+git clone https://github.com/Anime5hka/raceloom && cd raceloom && npm run examples
 # Python: cd python && pip install -e . pytest && pytest examples/
 ```
 

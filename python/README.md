@@ -51,4 +51,4 @@ The engine is the same (exhaustive enumeration → random + PCT sampling, shrink
 
 Task names (`create_task(..., name=...)`, `TaskGroup.create_task(..., name=...)`) label the timeline. Detected failures: assertion/exception in the body, deadlocks, runaway loops, exceptions in callbacks, and errors in tasks nobody awaited.
 
-Requires CPython's default asyncio event loop (not uvloop). Full docs, examples and the JS version: see the [main README](https://github.com/OWNER/raceloom#readme).
+Requires CPython's default asyncio event loop (not uvloop). Full docs, examples and the JS version: see the [main README](https://github.com/Anime5hka/raceloom#readme).
