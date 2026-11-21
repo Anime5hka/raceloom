@@ -24,6 +24,11 @@ export interface ExploreOptions {
    * in the same process.
    */
   patchGlobals?: boolean;
+  /**
+   * Fail a schedule when a simulated operation rejects and nothing subscribed to its promise
+   * by the next idle point. Default: true.
+   */
+  unhandledRejections?: boolean;
   /** Stop exploring after this many milliseconds of real time. */
   timeLimit?: number;
 }

@@ -43,7 +43,7 @@ function describe(ev) {
     case 'log':
       return `• ${ev.label}`;
     case 'error':
-      return `💥 uncaught ${ev.value}`;
+      return `💥 ${ev.value}`;
     default:
       return ev.label;
   }

@@ -4,6 +4,21 @@ import { formatValue, formatError } from './format.js';
 
 export const taskStore = new AsyncLocalStorage();
 
+/**
+ * The promise returned by a simulated operation. It records whether anyone subscribed
+ * (then/catch/await/Promise.all all go through `then` for subclasses), so a rejection
+ * nobody handles can be reported with a timeline instead of crashing the runner.
+ */
+class OpPromise extends Promise {
+  static get [Symbol.species]() {
+    return Promise;
+  }
+  then(onFulfilled, onRejected) {
+    this.handled = true;
+    return super.then(onFulfilled, onRejected);
+  }
+}
+
 // Virtual wall clock starts here so patched Date looks realistic but stays reproducible.
 const EPOCH = Date.UTC(2026, 0, 1);
 
@@ -12,8 +27,10 @@ const EPOCH = Date.UTC(2026, 0, 1);
  * so all state the test touches must be created inside the test body.
  */
 export class Sim {
-  constructor({ seed = 1 } = {}) {
+  constructor({ seed = 1, trackRejections = true } = {}) {
     this.seed = seed;
+    this._trackRejections = trackRejections;
+    this._rejected = []; // op promises that rejected; checked for handlers at each idle point
     this._rng = createRng(seed);
     this._now = 0;
     this._seq = 0;
@@ -127,7 +144,8 @@ export class Sim {
     const task = this._task();
     const label = args ? `${name}(${args.map(formatValue).join(', ')})` : name;
     if (kind === 'op') this._event({ type: 'call', label, task });
-    return new Promise((resolve, reject) => {
+    const Ctor = this._trackRejections ? OpPromise : Promise;
+    const promise = new Ctor((resolve, reject) => {
       this._pending.push({
         id,
         kind,
@@ -153,6 +171,7 @@ export class Sim {
             (e) => {
               this._event({ type: 'throw', label, task, value: formatError(e), overtook });
               reject(e);
+              if (this._trackRejections) this._rejected.push({ promise, error: e, label, task });
             },
           );
           this._inflight.add(p);
@@ -160,6 +179,20 @@ export class Sim {
         },
       });
     });
+    // Mark the native promise handled; OpPromise.handled tracks *user* subscriptions.
+    if (this._trackRejections) Promise.prototype.then.call(promise, undefined, () => {});
+    return promise;
+  }
+
+  /** Called when the world is idle: any rejected op nobody subscribed to is an unhandled rejection. */
+  _checkUnhandled() {
+    for (const r of this._rejected) {
+      if (!r.promise.handled) {
+        this._event({ type: 'error', task: r.task, value: `unhandled rejection from ${r.label}: ${formatError(r.error)}` });
+        this._uncaught ??= r.error;
+      }
+    }
+    this._rejected.length = 0;
   }
 
   _timer(ms, cb, label, repeat) {
@@ -183,7 +216,7 @@ export class Sim {
         try {
           taskStore.run(task, cb);
         } catch (e) {
-          this._event({ type: 'error', task, value: formatError(e) });
+          this._event({ type: 'error', task, value: `uncaught ${formatError(e)}` });
           this._uncaught ??= e;
         }
       },

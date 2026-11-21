@@ -324,3 +324,41 @@ test('odd seeds still produce valid replay tokens', async () => {
   assert.match(err.replay, /^\d+:[\d.]+$/);
   await assert.rejects(explore(staleSearch, { replay: err.replay }), RaceError);
 });
+
+test('an unhandled rejection that only happens in some orderings fails the run', async () => {
+  const err = await explore(async (sim) => {
+    let closed = false;
+    const conn = sim.wrap('conn', {
+      async send(msg) { if (closed) throw new Error(`send after close: ${msg}`); },
+      async close() { closed = true; },
+    });
+    conn.send('bye'); // fire-and-forget: nobody handles a failure
+    await conn.close();
+    await sim.yield();
+  }).catch((e) => e);
+  assert.ok(err instanceof RaceError, String(err));
+  assert.match(err.cause.message, /send after close/);
+  assert.match(err.message, /💥 unhandled rejection from conn\.send\('bye'\): Error: send after close/);
+});
+
+test('unhandledRejections: false returns plain native promises', async () => {
+  const ctors = [];
+  for (const unhandledRejections of [true, false]) {
+    await explore(async (sim) => {
+      const p = sim.fn('op')();
+      ctors.push(p.constructor === Promise);
+      await p;
+    }, { unhandledRejections, runs: 1 });
+  }
+  assert.deepEqual(ctors, [false, true]);
+});
+
+test('handled op rejections (await, .catch, Promise.allSettled) are not reported', async () => {
+  const res = await explore(async (sim) => {
+    const boom = sim.fn('boom', async () => { throw new Error('x'); });
+    await boom().catch(() => {});
+    await Promise.allSettled([boom(), boom()]);
+    try { await boom(); } catch {}
+  });
+  assert.equal(res.complete, true);
+});

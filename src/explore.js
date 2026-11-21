@@ -41,8 +41,8 @@ function renderMessage({ error, schedule, strategy, seed, replay, trace, decisio
 }
 
 /** Execute the body once, letting `decide` pick at every point where more than one thing can run. */
-async function runSchedule(body, { seed, decide, maxSteps, patchGlobals }) {
-  const sim = new Sim({ seed });
+async function runSchedule(body, { seed, decide, maxSteps, patchGlobals, unhandledRejections = true }) {
+  const sim = new Sim({ seed, trackRejections: unhandledRejections });
   const decisions = [];
   const sizes = [];
   let settled = false;
@@ -61,6 +61,7 @@ async function runSchedule(body, { seed, decide, maxSteps, patchGlobals }) {
     let steps = 0;
     for (;;) {
       await quiesce();
+      sim._checkUnhandled();
       if (sim._uncaught) error ??= sim._uncaught;
       if (error) break;
       const choices = sim._choices();
@@ -154,6 +155,7 @@ export async function explore(body, options = {}) {
     shrinkRuns: 500,
     maxSteps: 10_000,
     patchGlobals: false,
+    unhandledRejections: true,
     replay: undefined,
     timeLimit: undefined,
     ...options,
@@ -162,7 +164,7 @@ export async function explore(body, options = {}) {
   if (!['auto', 'exhaustive', 'random'].includes(opts.strategy)) {
     throw new TypeError(`raceloom: unknown strategy ${JSON.stringify(opts.strategy)}`);
   }
-  const runOpts = { maxSteps: opts.maxSteps, patchGlobals: opts.patchGlobals, shrinkRuns: opts.shrinkRuns };
+  const runOpts = { maxSteps: opts.maxSteps, patchGlobals: opts.patchGlobals, unhandledRejections: opts.unhandledRejections, shrinkRuns: opts.shrinkRuns };
 
   const fail = (info) => {
     throw new RaceError({ ...info, replay: toReplay(info.seed, info.decisions) });

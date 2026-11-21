@@ -82,7 +82,7 @@ Time is virtual. `sim.sleep(30_000)` takes microseconds, timers fire in deadline
 
 ### `explore(body, options?) → Promise<{ schedules, complete, strategy }>`
 
-Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — every schedule gets a fresh world. Rejects with a `RaceError` on the first failing schedule (an assertion, a thrown error, a deadlock, or a runaway loop).
+Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — every schedule gets a fresh world. Rejects with a `RaceError` on the first failing schedule (an assertion, a thrown error, an unhandled rejection, a deadlock, or a runaway loop).
 
 | Option | Default | |
 |---|---|---|
@@ -91,6 +91,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 | `seed` | `1` | Base seed (`RACELOOM_SEED` env var overrides the default) |
 | `replay` | — | Re-run one schedule from a `RaceError`'s token |
 | `patchGlobals` | `false` | Virtualize `setTimeout`/`setInterval`/`setImmediate`/`Date`/`Math.random` |
+| `unhandledRejections` | `true` | Fail when a wrapped operation rejects and nothing ever handles it (e.g. a fire-and-forget `send()` that only fails in some orderings) |
 | `shrink` | `true` | Minimize failing schedules (`shrinkRuns`: budget, default 500) |
 | `maxSteps` | `10000` | Fail a schedule that takes more scheduling steps than this |
 | `timeLimit` | — | Stop exploring after N ms of real time |
@@ -129,7 +130,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 - [ ] PCT strategy (probabilistic concurrency testing) for deep bugs in big state spaces
 - [ ] Two-phase operations (request executes, response arrives later) to model network latency more precisely
 - [ ] `fetch` / undici interceptor so HTTP clients can be wrapped with zero glue
-- [ ] Unhandled-rejection detection inside schedules
+- [x] Unhandled-rejection detection inside schedules
 - [ ] Browser build
 
 Ideas and bug reports welcome — especially real-world races that raceloom should (or can't yet) catch.
