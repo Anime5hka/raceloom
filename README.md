@@ -103,7 +103,7 @@ git clone https://github.com/Anime5hka/raceloom && cd raceloom && npm run exampl
 
 ## Use it from AI coding agents
 
-[`skills/raceloom/SKILL.md`](skills/raceloom/SKILL.md) is an [agent skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches Claude Code (and other agents that read `SKILL.md`) when to reach for raceloom, how to pick the racing actors, which invariant to assert, and how to explain the timeline. Install it for your user:
+[`skills/raceloom/SKILL.md`](skills/raceloom/SKILL.md) is an agent skill that teaches Claude Code (and other agents that read `SKILL.md`) when to reach for raceloom, how to pick the racing actors, which invariant to assert, and how to explain the timeline. Install it for your user:
 
 ```sh
 mkdir -p ~/.claude/skills/raceloom && curl -fsSL https://raw.githubusercontent.com/Anime5hka/raceloom/main/skills/raceloom/SKILL.md -o ~/.claude/skills/raceloom/SKILL.md
