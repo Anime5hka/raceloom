@@ -3,11 +3,15 @@ export interface ExploreOptions {
   runs?: number;
   /**
    * - `auto` (default): enumerate orderings depth-first for half the budget; if the space is
-   *   bigger than that, sample random orderings for the rest.
+   *   bigger than that, alternate random and PCT sampling for the rest.
    * - `exhaustive`: depth-first enumeration only. Proves the absence of races when it completes.
-   * - `random`: seeded random sampling only.
+   * - `random`: seeded uniform random sampling only.
+   * - `pct`: probabilistic concurrency testing (random task priorities with a few priority
+   *   change points). Finds "one task stalls for a long time" bugs that uniform random misses.
    */
-  strategy?: 'auto' | 'exhaustive' | 'random';
+  strategy?: 'auto' | 'exhaustive' | 'random' | 'pct';
+  /** Maximum bug depth targeted by PCT (each run picks 1..pctDepth). Default: 3. */
+  pctDepth?: number;
   /** Base seed. Default: 1, or the RACELOOM_SEED environment variable. */
   seed?: number;
   /** Re-run exactly one schedule, using the token printed in a RaceError. */
@@ -38,7 +42,7 @@ export interface ExploreResult {
   schedules: number;
   /** True when every possible ordering was explored (no race exists for this test). */
   complete: boolean;
-  strategy: 'exhaustive' | 'random' | 'auto' | 'replay';
+  strategy: 'exhaustive' | 'random' | 'pct' | 'auto' | 'replay';
 }
 
 export interface TraceEvent {

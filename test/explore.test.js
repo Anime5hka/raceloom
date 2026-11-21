@@ -394,3 +394,30 @@ test('mockFetch accepts Response, string and absolute URLs', async () => {
     assert.deepEqual(await (await fetch(new Request('https://api.example.com/j'))).json(), { ok: 1 });
   });
 });
+
+test('pct finds a bug that needs one task to stall for a long time', async () => {
+  // Task A's single op must complete after all 12 of task B's sequential ops.
+  // Uniform random choice needs ~2^12 tries; PCT needs a lucky priority (~1/2).
+  const body = async (sim) => {
+    const op = sim.fn('op');
+    let bDone = false;
+    await Promise.all([
+      sim.go('A', async () => {
+        await op('a');
+        if (bDone) throw new Error('A finished last');
+      }),
+      sim.go('B', async () => {
+        for (let i = 0; i < 12; i++) await op(`b${i}`);
+        bDone = true;
+      }),
+    ]);
+  };
+  const missed = await explore(body, { strategy: 'random', runs: 100 }).then(() => true, () => false);
+  assert.equal(missed, true, 'uniform random should (almost always) miss this');
+  const err = await explore(body, { strategy: 'pct', runs: 100 }).catch((e) => e);
+  assert.ok(err instanceof RaceError);
+  assert.equal(err.strategy, 'pct');
+  assert.match(err.cause.message, /A finished last/);
+  // The replay token still reproduces it exactly.
+  await assert.rejects(explore(body, { replay: err.replay }), RaceError);
+});

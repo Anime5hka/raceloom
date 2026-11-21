@@ -79,7 +79,7 @@ async function runSchedule(body, { seed, decide, maxSteps, patchGlobals, unhandl
       }
       let k = 0;
       if (choices.length > 1) {
-        k = Math.min(decide(decisions.length, choices.length), choices.length - 1);
+        k = Math.min(decide(decisions.length, choices.length, choices), choices.length - 1);
         decisions.push(k);
         sizes.push(choices.length);
       }
@@ -92,6 +92,33 @@ async function runSchedule(body, { seed, decide, maxSteps, patchGlobals, unhandl
     for (const undo of sim._cleanups.splice(0).reverse()) undo();
   }
   return { error, decisions, sizes, trace: sim._trace };
+}
+
+/**
+ * PCT (Burckhardt et al., ASPLOS 2010): give every task a random priority, always run the
+ * highest-priority task's work, and at d-1 random steps demote the running task. A bug that
+ * needs d ordering constraints is found with probability >= 1/(tasks * steps^(d-1)) per run.
+ * Each run picks d uniformly in 1..maxDepth: extra change points would only break shallow bugs.
+ */
+function pctDecider(rng, steps, maxDepth = 3) {
+  const priority = new Map();
+  const depth = 1 + rng.int(maxDepth);
+  const changePoints = new Set(Array.from({ length: depth - 1 }, () => rng.int(steps)));
+  let low = 0;
+  const prio = (task) => {
+    if (!priority.has(task)) priority.set(task, 1 + rng());
+    return priority.get(task);
+  };
+  return (i, n, choices) => {
+    let best = 0;
+    for (let j = 1; j < n; j++) if (prio(choices[j].task) > prio(choices[best].task)) best = j;
+    if (changePoints.has(i)) {
+      priority.set(choices[best].task, --low); // demote, then re-pick
+      best = 0;
+      for (let j = 1; j < n; j++) if (prio(choices[j].task) > prio(choices[best].task)) best = j;
+    }
+    return best;
+  };
 }
 
 const replayDecider = (prefix) => (i) => (i < prefix.length ? prefix[i] : 0);
@@ -155,6 +182,7 @@ export async function explore(body, options = {}) {
     shrink: true,
     shrinkRuns: 500,
     maxSteps: 10_000,
+    pctDepth: 3,
     patchGlobals: false,
     unhandledRejections: true,
     replay: undefined,
@@ -162,7 +190,7 @@ export async function explore(body, options = {}) {
     ...options,
   };
   opts.seed = Number(opts.seed) >>> 0; // replay tokens need a non-negative integer
-  if (!['auto', 'exhaustive', 'random'].includes(opts.strategy)) {
+  if (!['auto', 'exhaustive', 'random', 'pct'].includes(opts.strategy)) {
     throw new TypeError(`raceloom: unknown strategy ${JSON.stringify(opts.strategy)}`);
   }
   const runOpts = { maxSteps: opts.maxSteps, patchGlobals: opts.patchGlobals, unhandledRejections: opts.unhandledRejections, shrinkRuns: opts.shrinkRuns };
@@ -210,14 +238,19 @@ export async function explore(body, options = {}) {
   }
   if (complete) return { schedules, complete: true, strategy: 'exhaustive' };
 
-  // Phase 2: seeded random sampling for spaces too large to enumerate.
+  // Phase 2: seeded sampling for spaces too large to enumerate. `auto` alternates
+  // uniform random choices with PCT, which is much better at "one task stalls for a long time" bugs.
   const base = opts.seed;
+  let depthHint = 8;
   while (schedules < opts.runs && Date.now() < deadline) {
     const seed = base + schedules;
+    const usePct = opts.strategy === 'pct' || (opts.strategy === 'auto' && schedules % 2 === 1);
     schedules++;
     const rng = createRng(seed ^ 0x9e3779b9);
-    const r = await runSchedule(body, { ...runOpts, seed, decide: (_, n) => rng.int(n) });
-    if (r.error) await onFailure(r, seed, 'random');
+    const decide = usePct ? pctDecider(rng, depthHint, opts.pctDepth) : (_, n) => rng.int(n);
+    const r = await runSchedule(body, { ...runOpts, seed, decide });
+    depthHint = Math.max(depthHint, r.decisions.length);
+    if (r.error) await onFailure(r, seed, usePct ? 'pct' : 'random');
   }
   return { schedules, complete: false, strategy: opts.strategy };
 }

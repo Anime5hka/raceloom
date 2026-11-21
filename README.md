@@ -72,7 +72,7 @@ git clone https://github.com/OWNER/raceloom && cd raceloom && npm run examples
 
 1. **Every wrapped call becomes a pending operation.** `sim.wrap('db', fakeDb)` returns a proxy; calling `db.get('alice')` doesn't run the fake yet — it parks the call.
 2. **raceloom decides what runs next.** Whenever your code is idle (all microtasks drained), it picks one pending operation or timer to complete. In the default order, operations complete in the order they were called — that's the schedule your plain test already covers.
-3. **It explores the others.** First it enumerates every ordering depth-first. If the space is too large for the budget, it switches to seeded random sampling. When enumeration finishes without a failure, `explore` tells you so (`{ complete: true }`) — that's a proof, not a sample.
+3. **It explores the others.** First it enumerates every ordering depth-first. If the space is too large for the budget, it switches to seeded sampling: uniform random choices alternating with [PCT](https://www.microsoft.com/en-us/research/publication/a-randomized-scheduler-with-probabilistic-guarantees-of-finding-bugs/) (probabilistic concurrency testing), which finds bugs where one task has to stall for a long time — the ones uniform random almost never hits. When enumeration finishes without a failure, `explore` tells you so (`{ complete: true }`) — that's a proof, not a sample.
 4. **It shrinks failures.** The failing schedule is minimized to the fewest out-of-order steps, so the timeline shows the cause, not noise. Steps marked `⚡ overtook N earlier pending ops` are where reality diverged from the happy path.
 5. **It replays.** The `replay` token (`seed:choices`) re-runs exactly that schedule, deterministically.
 
@@ -87,7 +87,8 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 | Option | Default | |
 |---|---|---|
 | `runs` | `1000` | Maximum schedules to try |
-| `strategy` | `'auto'` | `'exhaustive'`, `'random'`, or `'auto'` (exhaustive for half the budget, then random) |
+| `strategy` | `'auto'` | `'exhaustive'`, `'random'`, `'pct'`, or `'auto'` (exhaustive for half the budget, then alternating random and PCT) |
+| `pctDepth` | `3` | Max bug depth (number of ordering constraints) PCT targets |
 | `seed` | `1` | Base seed (`RACELOOM_SEED` env var overrides the default) |
 | `replay` | — | Re-run one schedule from a `RaceError`'s token |
 | `patchGlobals` | `false` | Virtualize `setTimeout`/`setInterval`/`setImmediate`/`Date`/`Math.random` |
@@ -128,7 +129,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 ## Roadmap
 
 - [ ] Partial-order reduction (skip orderings of independent operations) for much larger exhaustive searches
-- [ ] PCT strategy (probabilistic concurrency testing) for deep bugs in big state spaces
+- [x] PCT strategy (probabilistic concurrency testing) for deep bugs in big state spaces
 - [ ] Two-phase operations (request executes, response arrives later) to model network latency more precisely
 - [x] `sim.mockFetch` so code that calls `fetch` can be tested with zero glue
 - [x] Unhandled-rejection detection inside schedules
