@@ -7,7 +7,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Anime5hka/raceloom/actions/workflows/ci.yml"><img src="https://github.com/Anime5hka/raceloom/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="zero dependencies">
   <img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="node >= 20">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776ab" alt="python >= 3.11">
