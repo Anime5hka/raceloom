@@ -215,6 +215,15 @@ def explore(
     """
     if not callable(body):
         raise TypeError("raceloom: explore(body) expects an async function")
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(
+            "raceloom: explore() runs its own event loops, so call it from a regular (sync) test. "
+            "Inside async code use: await asyncio.to_thread(explore, body)"
+        )
     if strategy not in ("auto", "exhaustive", "random", "pct"):
         raise ValueError(f"raceloom: unknown strategy {strategy!r}")
     if seed is None:

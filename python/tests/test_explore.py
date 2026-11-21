@@ -421,3 +421,13 @@ def test_does_not_leak_a_running_loop():
     with pytest.raises(RuntimeError):
         asyncio.get_running_loop()
     assert asyncio.run(asyncio.sleep(0, result=7)) == 7
+
+
+def test_inside_a_running_loop_gives_a_helpful_error_and_to_thread_works():
+    async def outer():
+        with pytest.raises(RuntimeError, match="asyncio.to_thread"):
+            explore(stale_search)
+        with pytest.raises(RaceError):
+            await asyncio.to_thread(explore, stale_search)
+
+    asyncio.run(outer())

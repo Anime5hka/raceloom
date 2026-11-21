@@ -42,7 +42,7 @@ The engine is the same (exhaustive enumeration → random + PCT sampling, shrink
 
 | | |
 |---|---|
-| `explore(body, *, runs=1000, strategy="auto", seed=None, replay=None, shrink=True, max_steps=10000, pct_depth=3, time_limit=None)` | Synchronous; call it from a normal test. Raises `RaceError` (an `AssertionError`) whose `__cause__` is your original error. |
+| `explore(body, *, runs=1000, strategy="auto", seed=None, replay=None, shrink=True, max_steps=10000, pct_depth=3, time_limit=None)` | Synchronous; call it from a normal test (inside async code: `await asyncio.to_thread(explore, body)`). Raises `RaceError` (an `AssertionError`) whose `__cause__` is your original error. |
 | `sim.wrap(name, obj, network=False)` | Proxy every public method; sync and async methods both become awaitable operations. |
 | `sim.fn(name, impl, network=False)` | The same for one function. |
 | `network=True` | Two scheduling points per call: the implementation executes, then the response arrives later. |
