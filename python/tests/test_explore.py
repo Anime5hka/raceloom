@@ -431,3 +431,13 @@ def test_inside_a_running_loop_gives_a_helpful_error_and_to_thread_works():
             await asyncio.to_thread(explore, stale_search)
 
     asyncio.run(outer())
+
+
+def test_fakes_may_wait_on_real_threads_without_false_deadlocks():
+    async def body(sim):
+        slow = sim.fn("slow", lambda: asyncio.to_thread(time.sleep, 0.02))
+        after = sim.fn("after", lambda: "ok")
+        await slow()
+        assert await after() == "ok"
+
+    assert explore(body, runs=3).complete
