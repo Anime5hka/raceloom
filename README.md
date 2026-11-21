@@ -1,7 +1,7 @@
 <h1 align="center">raceloom 🧶</h1>
 
 <p align="center">
-  <b>Find race conditions in async JavaScript before your users do.</b><br>
+  <b>Find race conditions in async JavaScript and Python before your users do.</b><br>
   raceloom re-runs your test under every ordering of its <code>await</code>s, shrinks the failure<br>
   to the one reordering that matters, and prints exactly what happened.
 </p>
@@ -10,6 +10,7 @@
   <a href="https://github.com/OWNER/raceloom/actions/workflows/ci.yml"><img src="https://github.com/OWNER/raceloom/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="zero dependencies">
   <img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="node >= 20">
+  <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776ab" alt="python >= 3.11">
   <img src="https://img.shields.io/badge/types-included-3178c6" alt="TypeScript types included">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
 </p>
@@ -24,8 +25,16 @@ raceloom is a tiny, zero-dependency library that makes those orderings **testabl
 
 ## Quick start
 
+**JavaScript / TypeScript** (Node ≥ 20, any test runner):
+
 ```sh
 npm install --save-dev github:OWNER/raceloom
+```
+
+**Python** (asyncio, Python ≥ 3.11, pytest or anything else) — see [python/README.md](python/README.md):
+
+```sh
+pip install "git+https://github.com/OWNER/raceloom#subdirectory=python"
 ```
 
 Wrap the async boundaries of your test (your fake db, API client, cache…) with `sim.wrap` / `sim.fn`, and put the test body inside `explore`:
@@ -54,9 +63,31 @@ test('search box shows results for the latest query', async () => {
 
 A plain version of this test passes. With raceloom it fails with the timeline above: the response for `"ra"` overtook the response for `"r"`, so the UI shows results for the wrong query. Paste the replay token into `explore(fn, { replay: "1:1" })` and you get that exact interleaving every time — perfect for a debugger.
 
+<details>
+<summary><b>The same test in Python</b></summary>
+
+```python
+import asyncio
+from raceloom import explore
+
+def test_search_box_shows_latest_results():
+    async def scenario(sim):
+        api = sim.wrap("api", FakeSearchApi())
+        box = SearchBox(api)                     # your real code
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(box.on_input("r"), name="keystroke 1")
+            tg.create_task(box.on_input("ra"), name="keystroke 2")
+        assert all(r.startswith(box.query) for r in box.results)
+
+    explore(scenario)
+```
+
+In Python every asyncio timer (`sleep`, `wait_for`, `asyncio.timeout`) runs on the virtual clock automatically.
+</details>
+
 ## What it catches
 
-Every example in [`examples/`](examples) is a real bug that a normal unit test misses:
+Every example in [`examples/`](examples) (and its Python twin in [`python/examples/`](python/examples)) is a real bug that a normal unit test misses:
 
 | Example | Bug | Found in |
 |---|---|---|
@@ -66,6 +97,7 @@ Every example in [`examples/`](examples) is a real bug that a normal unit test m
 
 ```sh
 git clone https://github.com/OWNER/raceloom && cd raceloom && npm run examples
+# Python: cd python && pip install -e . pytest && pytest examples/
 ```
 
 ## How it works
@@ -138,6 +170,8 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 - [x] `sim.mockFetch` so code that calls `fetch` can be tested with zero glue
 - [x] Unhandled-rejection detection inside schedules
 - [ ] Browser build
+- [x] Python / asyncio port
+- [ ] Trio and AnyIO support for the Python port
 
 Ideas and bug reports welcome — especially real-world races that raceloom should (or can't yet) catch.
 
