@@ -64,7 +64,7 @@ async function runSchedule(body, { seed, decide, maxSteps, patchGlobals }) {
       if (sim._uncaught) error ??= sim._uncaught;
       if (error) break;
       const choices = sim._choices();
-      if (settled && choices.every((c) => c.repeat)) break; // only leftover intervals
+      if (settled && !sim._inflight.size && choices.every((c) => c.repeat)) break; // only leftover intervals
       if (choices.length === 0) {
         if (sim._inflight.size) {
           await Promise.race(sim._inflight);
@@ -106,11 +106,16 @@ const toReplay = (seed, decisions) => {
   return `${seed}:${d.join('.')}`;
 };
 
-async function shrink(body, seed, decisions, opts) {
+const errorKind = (e) => (e instanceof Error ? e.name : typeof e);
+
+async function shrink(body, seed, decisions, original, opts) {
   let budget = opts.shrinkRuns;
+  // Only accept candidates that fail the same way, so shrinking can't wander off into a different bug.
+  const kind = errorKind(original);
   const fails = async (prefix) => {
     if (budget-- <= 0) return false;
-    return (await runSchedule(body, { ...opts, seed, decide: replayDecider(prefix) })).error != null;
+    const { error } = await runSchedule(body, { ...opts, seed, decide: replayDecider(prefix) });
+    return error != null && errorKind(error) === kind;
   };
   let best = decisions;
   // 1. Shortest failing prefix (everything after it falls back to the default order).
@@ -153,6 +158,7 @@ export async function explore(body, options = {}) {
     timeLimit: undefined,
     ...options,
   };
+  opts.seed = Number(opts.seed) >>> 0; // replay tokens need a non-negative integer
   if (!['auto', 'exhaustive', 'random'].includes(opts.strategy)) {
     throw new TypeError(`raceloom: unknown strategy ${JSON.stringify(opts.strategy)}`);
   }
@@ -177,7 +183,7 @@ export async function explore(body, options = {}) {
     let decisions = r.decisions;
     let final = r;
     if (opts.shrink) {
-      decisions = await shrink(body, seed, r.decisions, runOpts);
+      decisions = await shrink(body, seed, r.decisions, r.error, runOpts);
       final = await runSchedule(body, { ...runOpts, seed, decide: replayDecider(decisions) });
       if (!final.error) [final, decisions] = [r, r.decisions]; // flaky body: keep the original
     }

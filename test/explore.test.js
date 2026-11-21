@@ -274,3 +274,53 @@ test('budget: exhaustive search stops at `runs` and reports incomplete', async (
   assert.equal(res.complete, false);
   assert.equal(res.schedules, 20);
 });
+
+test('patched Date still works without `new`, with arguments, and with instanceof', async () => {
+  const RealDate = Date;
+  await explore(
+    async () => {
+      assert.equal(typeof Date(), 'string');
+      assert.ok(new Date() instanceof RealDate);
+      assert.equal(new Date(0).getTime(), 0);
+      assert.equal(Date.UTC(2020, 0, 1), RealDate.UTC(2020, 0, 1));
+      const t0 = Date.now();
+      await new Promise((r) => setTimeout(r, 1234));
+      assert.equal(Date.now() - t0, 1234);
+    },
+    { patchGlobals: true },
+  );
+});
+
+test('the body finishing does not cut off operations still settling', async () => {
+  let finished = false;
+  const res = await explore(async (sim) => {
+    const slow = sim.fn('slow', () => new Promise((r) => setTimeout(r, 5))); // real timer inside the fake
+    const after = sim.fn('after');
+    slow().then(() => after()).then(() => (finished = true));
+  }, { runs: 1 });
+  assert.equal(res.schedules, 1);
+  assert.equal(finished, true);
+});
+
+test('shrinking keeps the same kind of failure', async () => {
+  class LostUpdate extends Error { name = 'LostUpdate'; }
+  // The default order fails with a *different* error; shrinking must not drift to it.
+  const body = async (sim) => {
+    const op = sim.fn('op', async (x) => x);
+    const order = [];
+    await Promise.all(['a', 'b', 'c'].map((x) => op(x).then(() => order.push(x))));
+    const o = order.join('');
+    if (o === 'abc') throw new TypeError('default order');
+    if (o === 'cba') throw new LostUpdate(o);
+  };
+  // seed 5: the first random schedule that fails is the 'cba' LostUpdate.
+  const err = await explore(body, { strategy: 'random', seed: 5 }).catch((e) => e);
+  assert.equal(err.cause.name, 'LostUpdate');
+  assert.match(err.message, /LostUpdate: cba/);
+});
+
+test('odd seeds still produce valid replay tokens', async () => {
+  const err = await explore(staleSearch, { seed: -5, strategy: 'random' }).catch((e) => e);
+  assert.match(err.replay, /^\d+:[\d.]+$/);
+  await assert.rejects(explore(staleSearch, { replay: err.replay }), RaceError);
+});

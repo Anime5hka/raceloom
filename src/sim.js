@@ -225,15 +225,13 @@ export class Sim {
     };
     const sim = this;
     const RealDate = saved.Date;
-    class SimDate extends RealDate {
-      constructor(...a) {
-        if (a.length === 0) super(EPOCH + sim._now);
-        else super(...a);
-      }
-      static now() {
-        return EPOCH + sim._now;
-      }
-    }
+    const virtualNow = () => EPOCH + sim._now;
+    // A Proxy (not a subclass) so `Date()` without `new`, `instanceof Date`, Date.UTC/parse all keep working.
+    const SimDate = new Proxy(RealDate, {
+      construct: (target, args, newTarget) => Reflect.construct(target, args.length ? args : [virtualNow()], newTarget),
+      apply: () => new RealDate(virtualNow()).toString(),
+      get: (target, prop, receiver) => (prop === 'now' ? virtualNow : Reflect.get(target, prop, receiver)),
+    });
     g.setTimeout = this.setTimeout;
     g.clearTimeout = this.clearTimeout;
     g.setInterval = this.setInterval;
