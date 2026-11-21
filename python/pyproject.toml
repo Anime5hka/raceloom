@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raceloom"
+version = "0.1.0"
+description = "Find race conditions in asyncio code: explores every ordering of your awaits, shrinks the failure, and prints the exact interleaving."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["asyncio", "race-condition", "concurrency", "testing", "deterministic-simulation", "model-checking", "pytest"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Framework :: AsyncIO",
+  "Framework :: Pytest",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Testing",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/raceloom"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
