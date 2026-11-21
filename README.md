@@ -31,7 +31,7 @@ npm install --save-dev github:OWNER/raceloom
 Wrap the async boundaries of your test (your fake db, API client, cache…) with `sim.wrap` / `sim.fn`, and put the test body inside `explore`:
 
 ```js
-import { test } from 'node:test';           // or vitest / jest — any runner works
+import { test } from 'node:test';           // or vitest, or jest (ESM mode)
 import assert from 'node:assert/strict';
 import { explore } from 'raceloom';
 
@@ -125,6 +125,8 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 **How is this different from fast-check's scheduler?** Same family of idea. raceloom is a focused tool for one job: zero-config exhaustive enumeration (with a completeness answer), automatic shrinking, task-labelled timelines, virtual time for timeouts, and drop-in use in any test runner.
 
 **Is it fast?** Roughly 10,000 schedules per second for small tests: all 5,040 orderings of 7 concurrent operations are explored (and proven race-free) in about 0.4 s on a single core. The examples above find, shrink and report their bug in 10–20 ms.
+
+**Which test runners?** Tested with `node:test`, vitest and jest. raceloom is ESM-only, so jest needs its ESM mode (`NODE_OPTIONS=--experimental-vm-modules jest`).
 
 **Caveats.** `patchGlobals` swaps process-wide globals, so don't run those tests concurrently in the same worker. Exhaustive search grows factorially with the number of *concurrently* pending operations — keep each test focused on 2–4 racing actors, which is where real bugs live.
 
