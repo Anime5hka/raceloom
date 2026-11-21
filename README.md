@@ -99,6 +99,8 @@ git clone https://github.com/Anime5hka/raceloom && cd raceloom && npm run exampl
 # Python: cd python && pip install -e . pytest && pytest examples/
 ```
 
+**Against real libraries:** [`case-studies/`](case-studies) runs raceloom on unmodified `lru-cache`, `async-lru`, `aiolimiter` and `aiocache`. It *proves* lru-cache's fetch-vs-delete handling safe in all 15 orderings — and finds in 2 schedules that aiocache's `@cached` writes a stale row back into the cache when an invalidation lands while a read is in flight.
+
 ## How it works
 
 1. **Every wrapped call becomes a pending operation.** `sim.wrap('db', fakeDb)` returns a proxy; calling `db.get('alice')` doesn't run the fake yet — it parks the call.
