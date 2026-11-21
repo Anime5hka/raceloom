@@ -3,7 +3,7 @@
 **Find race conditions in asyncio code before your users do.** raceloom re-runs your test under every ordering of its `await`s, shrinks the failure to the one reordering that matters, and prints exactly what happened.
 
 ```sh
-pip install raceloom   # zero dependencies, Python 3.11+
+pip install "git+https://github.com/Anime5hka/raceloom#subdirectory=python"   # zero dependencies, Python 3.11+
 ```
 
 ```python
