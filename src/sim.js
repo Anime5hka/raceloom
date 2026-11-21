@@ -56,16 +56,16 @@ export class Sim {
   // ---------------------------------------------------------------- public API
 
   /** Wrap an async function so each call becomes a schedulable operation. */
-  fn(name, impl = async () => {}) {
+  fn(name, impl = async () => {}, { network = false } = {}) {
     if (typeof name === 'function') [name, impl] = [name.name || 'fn', name];
     const sim = this;
     return function simulated(...args) {
-      return sim._op(name, args, () => impl.apply(this, args));
+      return sim._op(name, args, () => impl.apply(this, args), { network });
     };
   }
 
   /** Proxy every method of an object (e.g. a fake db/client) through sim.fn. */
-  wrap(name, obj) {
+  wrap(name, obj, { network = false } = {}) {
     const cache = new Map();
     return new Proxy(obj, {
       get: (target, prop, receiver) => {
@@ -74,7 +74,7 @@ export class Sim {
         if (!cache.has(prop)) {
           const sim = this;
           cache.set(prop, function (...args) {
-            return sim._op(`${name}.${String(prop)}`, args, () => v.apply(target, args));
+            return sim._op(`${name}.${String(prop)}`, args, () => v.apply(target, args), { network });
           });
         }
         return cache.get(prop);
@@ -87,12 +87,12 @@ export class Sim {
    * The handler may return a Response, a string, or any JSON-serializable value.
    * With { global: true } it also replaces globalThis.fetch for the rest of the schedule.
    */
-  mockFetch(handler, { global = false } = {}) {
+  mockFetch(handler, { global = false, network = true } = {}) {
     const fetch = (input, init) => {
       const req = new Request(typeof input === 'string' && input.startsWith('/') ? `http://localhost${input}` : input, init);
       const url = new URL(req.url);
       const where = url.host === 'localhost' ? url.pathname + url.search : req.url;
-      return this._op('fetch', null, async () => toResponse(await handler(req)), 'op', `fetch ${req.method} ${where}`);
+      return this._op('fetch', null, async () => toResponse(await handler(req)), { network, label: `fetch ${req.method} ${where}` });
     };
     if (global) {
       const saved = globalThis.fetch;
@@ -109,7 +109,7 @@ export class Sim {
 
   /** An explicit preemption point: other pending work may run before this resolves. */
   yield(label = 'yield') {
-    return this._op(label, null, () => undefined, 'yield');
+    return this._op(label, null, () => undefined, { kind: 'yield' });
   }
 
   sleep(ms = 0, label) {
@@ -165,7 +165,11 @@ export class Sim {
     }
   }
 
-  _op(name, args, run, kind = 'op', label = args ? `${name}(${args.map(formatValue).join(', ')})` : name) {
+  /**
+   * Park a call until the scheduler picks it. With `network`, the call is a round trip with two
+   * scheduling points: the implementation runs ("executed"), and later the response is delivered.
+   */
+  _op(name, args, run, { kind = 'op', network = false, label = args ? `${name}(${args.map(formatValue).join(', ')})` : name } = {}) {
     this._checkActive();
     const id = ++this._seq;
     const task = this._task();
@@ -189,17 +193,22 @@ export class Sim {
           } catch (e) {
             r = Promise.reject(e);
           }
-          const p = Promise.resolve(r).then(
-            (v) => {
-              this._event({ type: 'return', label, task, value: formatValue(v), overtook });
-              resolve(v);
-            },
-            (e) => {
-              this._event({ type: 'throw', label, task, value: formatError(e), overtook });
-              reject(e);
-              if (this._trackRejections) this._rejected.push({ promise, error: e, label, task });
-            },
-          );
+          const deliver = (ok, value) => (overtook2) => {
+            if (ok) {
+              this._event({ type: 'return', label, task, value: formatValue(value), overtook: overtook2 });
+              resolve(value);
+            } else {
+              this._event({ type: 'throw', label, task, value: formatError(value), overtook: overtook2 });
+              reject(value);
+              if (this._trackRejections) this._rejected.push({ promise, error: value, label, task });
+            }
+          };
+          const settle = (ok) => (value) => {
+            if (!network) return deliver(ok, value)(overtook);
+            this._event({ type: 'exec', label, task, overtook });
+            this._pending.push({ id: ++this._seq, kind: 'deliver', label, task, fire: deliver(ok, value) });
+          };
+          const p = Promise.resolve(r).then(settle(true), settle(false));
           this._inflight.add(p);
           p.finally(() => this._inflight.delete(p));
         },

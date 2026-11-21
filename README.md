@@ -76,6 +76,8 @@ git clone https://github.com/OWNER/raceloom && cd raceloom && npm run examples
 4. **It shrinks failures.** The failing schedule is minimized to the fewest out-of-order steps, so the timeline shows the cause, not noise. Steps marked `⚡ overtook N earlier pending ops` are where reality diverged from the happy path.
 5. **It replays.** The `replay` token (`seed:choices`) re-runs exactly that schedule, deterministically.
 
+**Network round trips.** By default an operation runs and returns in one step. With `{ network: true }` it becomes two: the implementation *executes* (`⚙ db.load(1) executed`) and, at a later point, the *response arrives*. That exposes a whole extra class of bugs — e.g. a read that executes before a write but whose response lands after the cache was invalidated. `sim.mockFetch` uses this mode by default.
+
 Time is virtual. `sim.sleep(30_000)` takes microseconds, timers fire in deadline order, and an operation may complete before *or after* any timer — which is exactly how timeouts race in production. With `patchGlobals: true`, unmodified code that uses `setTimeout`, `setInterval`, `setImmediate`, `Date` and `Math.random` runs on the virtual clock too.
 
 ## API
@@ -101,8 +103,8 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 
 | | |
 |---|---|
-| `sim.wrap(name, obj)` | Proxy every method of `obj`; each call is a schedulable op labelled `name.method(args)` |
-| `sim.fn(name, impl)` | Same for a single function |
+| `sim.wrap(name, obj, { network? })` | Proxy every method of `obj`; each call is a schedulable op labelled `name.method(args)` |
+| `sim.fn(name, impl, { network? })` | Same for a single function |
 | `sim.mockFetch(handler, { global? })` | A `fetch` whose requests are schedulable ops (`fetch GET /search?q=r`). `handler(request)` returns a `Response`, string or JSON value. `global: true` swaps `globalThis.fetch` for the schedule |
 | `sim.go(name, fn)` | Run `fn` as a named task — the name appears in the timeline |
 | `sim.sleep(ms)` / `sim.setTimeout` / `sim.setInterval` / `sim.clear*` | Virtual timers |
@@ -130,7 +132,7 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 
 - [ ] Partial-order reduction (skip orderings of independent operations) for much larger exhaustive searches
 - [x] PCT strategy (probabilistic concurrency testing) for deep bugs in big state spaces
-- [ ] Two-phase operations (request executes, response arrives later) to model network latency more precisely
+- [x] Two-phase operations (`{ network: true }`: request executes, response arrives later)
 - [x] `sim.mockFetch` so code that calls `fetch` can be tested with zero glue
 - [x] Unhandled-rejection detection inside schedules
 - [ ] Browser build

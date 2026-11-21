@@ -46,7 +46,7 @@ export interface ExploreResult {
 }
 
 export interface TraceEvent {
-  type: 'call' | 'return' | 'throw' | 'timer' | 'yield' | 'log' | 'error';
+  type: 'call' | 'exec' | 'return' | 'throw' | 'timer' | 'yield' | 'log' | 'error';
   task: string;
   label?: string;
   value?: string;
@@ -75,14 +75,22 @@ type AnyAsync = (...args: any[]) => any;
 type Asyncify<F> = F extends (...args: infer A) => infer R ? (...args: A) => Promise<Awaited<R>> : F;
 export type Wrapped<T> = { [K in keyof T]: T[K] extends AnyAsync ? Asyncify<T[K]> : T[K] };
 
+export interface OpOptions {
+  /**
+   * Model each call as a network round trip with two scheduling points: the implementation
+   * executes, and later the response is delivered. Default: false (true for mockFetch).
+   */
+  network?: boolean;
+}
+
 export declare class Sim {
   /** Seed for this schedule's `random()`. */
   readonly seed: number;
   /** Wrap a function so every call becomes a schedulable operation. */
-  fn<F extends AnyAsync>(name: string, impl?: F): Asyncify<F>;
+  fn<F extends AnyAsync>(name: string, impl?: F, options?: OpOptions): Asyncify<F>;
   fn<F extends AnyAsync>(impl: F): Asyncify<F>;
   /** Proxy every method of an object through `fn`, labelled `name.method`. */
-  wrap<T extends object>(name: string, obj: T): Wrapped<T>;
+  wrap<T extends object>(name: string, obj: T, options?: OpOptions): Wrapped<T>;
   /**
    * A fetch() whose requests are schedulable operations answered by `handler`.
    * Return a Response, a string, or any JSON-serializable value. Relative URLs resolve against http://localhost.
@@ -90,7 +98,7 @@ export declare class Sim {
    */
   mockFetch(
     handler: (request: Request) => unknown,
-    options?: { global?: boolean },
+    options?: { global?: boolean } & OpOptions,
   ): (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   /** Run `fn` as a named task; its operations are labelled with that name in the timeline. */
   go<R>(name: string, fn: () => R): R;

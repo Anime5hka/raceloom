@@ -37,6 +37,8 @@ function describe(ev) {
       return `← ${ev.label}${ev.value === 'undefined' ? '' : ` = ${ev.value}`}`;
     case 'throw':
       return `✗ ${ev.label} threw ${ev.value}`;
+    case 'exec':
+      return `⚙ ${ev.label} executed`;
     case 'timer':
       return `⏰ ${ev.label} fired${t}`;
     case 'yield':

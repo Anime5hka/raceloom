@@ -421,3 +421,34 @@ test('pct finds a bug that needs one task to stall for a long time', async () =>
   // The replay token still reproduces it exactly.
   await assert.rejects(explore(body, { replay: err.replay }), RaceError);
 });
+
+test('network ops split execution from response delivery', async () => {
+  // Cache-aside with an in-process (synchronous) cache. The race needs the db read to
+  // happen *before* the write but its response to arrive *after* the invalidation.
+  const scenario = (network) => async (sim) => {
+    const rows = new Map([[1, 'old']]);
+    const cache = new Map();
+    const db = sim.wrap('db', {
+      async load(id) { return rows.get(id); },
+      async save(id, v) { rows.set(id, v); },
+    }, { network });
+    const read = async () => {
+      if (cache.has(1)) return cache.get(1);
+      const v = await db.load(1);
+      cache.set(1, v);
+      return v;
+    };
+    const write = async () => {
+      await db.save(1, 'new');
+      cache.delete(1);
+    };
+    await Promise.all([sim.go('reader', read), sim.go('writer', write)]);
+    assert.equal(await read(), 'new');
+  };
+  const res = await explore(scenario(false));
+  assert.equal(res.complete, true, 'atomic ops cannot expose this race');
+  const err = await explore(scenario(true)).catch((e) => e);
+  assert.ok(err instanceof RaceError);
+  assert.match(err.message, /reader │ ⚙ db\.load\(1\) executed/);
+  assert.match(err.message, /reader │ ← db\.load\(1\) = 'old'/);
+});
