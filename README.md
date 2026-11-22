@@ -22,6 +22,16 @@ Your tests pass because fake promises resolve in the order you wrote them. Produ
 
 raceloom is a tiny, zero-dependency library that makes those orderings **testable, exhaustive and reproducible** — like [loom](https://github.com/tokio-rs/loom) for Rust or deterministic simulation testing, but as a 5-line change to a test you already have.
 
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-it-catches">What it catches</a> ·
+  <a href="#how-it-compares">How it compares</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#api">API</a> ·
+  <a href="#use-it-from-ai-coding-agents">AI agents</a> ·
+  <a href="#faq">FAQ</a>
+</p>
+
 ## Quick start
 
 **JavaScript / TypeScript** (Node ≥ 20, any test runner):
@@ -111,6 +121,16 @@ mkdir -p ~/.claude/skills/raceloom && curl -fsSL https://raw.githubusercontent.c
 
 Then ask: *"is there a race between `getUser` and `renameUser`?"*
 
+## How it compares
+
+| | Explores every ordering | Shrinks to the minimal failure | Readable timeline | Replay | Python too |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Re-running the test many times | ❌ one ordering, the same every time | ❌ | ❌ | ❌ | – |
+| Hand-written orderings (resolve fake promise B before A) | only the ones you think of | – | ❌ | ✅ | – |
+| [fast-check](https://fast-check.dev/) scheduler | random sampling inside property tests | ✅ | partial | ✅ seed | ❌ |
+| [loom](https://github.com/tokio-rs/loom) | ✅ | – | ❌ | ✅ | ❌ Rust only |
+| **raceloom** | ✅ exhaustive, or PCT for big searches | ✅ | ✅ per task | ✅ `err.replay` | ✅ asyncio |
+
 ## How it works
 
 1. **Every wrapped call becomes a pending operation.** `sim.wrap('db', fakeDb)` returns a proxy; calling `db.get('alice')` doesn't run the fake yet — it parks the call.
@@ -185,6 +205,10 @@ Runs `body(sim)` once per schedule. **Create your fakes inside `body`** — ever
 - [ ] Trio and AnyIO support for the Python port
 
 Ideas and bug reports welcome — especially real-world races that raceloom should (or can't yet) catch.
+
+## See also
+
+[sqlloom](https://github.com/Anime5hka/sqlloom) runs every interleaving of your SQL transactions on a real Postgres. [shakeout](https://github.com/Anime5hka/shakeout) finds flaky tests in a whole existing suite with seeded timing jitter, no test changes.
 
 ## License
 
