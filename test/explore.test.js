@@ -160,6 +160,9 @@ test('clearTimeout cancels and setInterval repeats', async () => {
       }, 10);
     });
     assert.equal(sim.now(), 30);
+    // and clearInterval really stops it (rubberstamp found this was never checked)
+    await new Promise((resolve) => sim.setTimeout(resolve, 50));
+    assert.equal(ticks, 3);
   });
 });
 
