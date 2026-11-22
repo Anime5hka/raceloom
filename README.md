@@ -210,6 +210,8 @@ Ideas and bug reports welcome — especially real-world races that raceloom shou
 
 [sqlloom](https://github.com/Anime5hka/sqlloom) runs every interleaving of your SQL transactions on a real Postgres. [shakeout](https://github.com/Anime5hka/shakeout) finds flaky tests in a whole existing suite with seeded timing jitter, no test changes.
 
+[leavenotrace](https://github.com/Anime5hka/leavenotrace) fails the test that leaks state into the next one. [rubberstamp](https://github.com/Anime5hka/rubberstamp) finds the functions your tests call but never check.
+
 ## License
 
 [MIT](LICENSE)
